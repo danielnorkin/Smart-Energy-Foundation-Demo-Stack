@@ -6,7 +6,7 @@
 
     # Creating resource group
     Write-Output "Creating resource group $deploymentName..."
-    New-AzureRmResourceGroup -Name $deploymentName -Location $deploymentLocation 
+    New-AzResourceGroup -Name $deploymentName -Location $deploymentLocation 
 
     # ARM Deployments
     
@@ -18,7 +18,7 @@
     $azureDeploymentName = $deploymentName + "-" + $idx
     $armTemplate = $armTemplates[$idx]
     Write-Output "Deploying via ARM template, $armTemplate, into Azure"
-    $armDeployment = New-AzureRmResourceGroupDeployment -Name $azureDeploymentName -ResourceGroupName $deploymentName `
+    $armDeployment = New-AzResourceGroupDeployment -Name $azureDeploymentName -ResourceGroupName $deploymentName `
           -TemplateFile ((Get-Item -Path ".\").FullName + "\" + $armTemplate) -TemplateParameterObject $parameters[$armTemplate]
     
     ## Collecting ARM deployment outputs
@@ -51,7 +51,7 @@
     $azureDeploymentName = $deploymentName + "-" + $idx
     $armTemplate = $armTemplates[$idx]
     Write-Output "Deploying via ARM template, $armTemplate, into Azure"
-    $armDeployment = New-AzureRmResourceGroupDeployment -Name $azureDeploymentName -ResourceGroupName $deploymentName `
+    $armDeployment = New-AzResourceGroupDeployment -Name $azureDeploymentName -ResourceGroupName $deploymentName `
           -TemplateFile ((Get-Item -Path ".\").FullName + "\" + $armTemplate) -TemplateParameterFile $paramsFile
 
     ## Collecting ARM deployment outputs
@@ -77,30 +77,30 @@ function populateDatabase(
     [string]
     $ResourceGroupName
 ) {
-    $servername = (Get-AzureRmSqlServer -ResourceGroupName $ResourceGroupName).ServerName
-    $dbname = (Get-AzureRmSqlDatabase -ResourceGroupName $ResourceGroupName -ServerName $servername).DatabaseName.Where( {$_ -ne 'master'} )[0]
+    $servername = (Get-AzSqlServer -ResourceGroupName $ResourceGroupName).ServerName
+    $dbname = (Get-AzSqlDatabase -ResourceGroupName $ResourceGroupName -ServerName $servername).DatabaseName.Where( {$_ -ne 'master'} )[0]
     $containerName = "$ResourceGroupName-blob"
     
     $username = 'abcdefg'
     $pwd = 'Passw0rd-2018' | ConvertTo-SecureString -AsPlainText -Force
     
-    $storageAccount = Get-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName
+    $storageAccount = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName
     $storageAccountName = $storageAccount.StorageAccountName
-    $blobStorage = New-AzureStorageContainer -Name $containerName -Context $storageAccount.Context -Permission blob
+    $blobStorage = New-AzStorageContainer -Name $containerName -Context $storageAccount.Context -Permission blob
     
     $filePath = ".\carbon_emissions_v1.bacpac"
     $outputFileName = "seed.bacpac"
     Write-Host "Uploading file: '$filePath' to blob storage '$blobStorage.' as filename '$outputFileName'"
-    $file = ($blobStorage | Set-AzureStorageBlobContent -File $filePath -Blob $outputFileName)
+    $file = ($blobStorage | Set-AzStorageBlobContent -File $filePath -Blob $outputFileName)
     $storageUri = $file.ICloudBlob.Uri.AbsoluteUri
     
     Write-Host "Importing data from bacpac file '$filepath' into database '$ResourceGroupName/$dbname'"
-    $importRequest = New-AzureRmSqlDatabaseImport `
+    $importRequest = New-AzSqlDatabaseImport `
         -ResourceGroupName $ResourceGroupName `
         -ServerName $servername `
         -DatabaseName $dbname `
         -StorageKeyType "StorageAccessKey" `
-        -StorageKey $(Get-AzureRmStorageAccountKey -ResourceGroupName $ResourceGroupName -StorageAccountName $storageAccountName).Value[0] `
+        -StorageKey $(Get-AzStorageAccountKey -ResourceGroupName $ResourceGroupName -StorageAccountName $storageAccountName).Value[0] `
         -StorageUri $storageUri `
         -AdministratorLogin $username `
         -AdministratorLoginPassword $pwd `
@@ -110,11 +110,11 @@ function populateDatabase(
 
     # Check import status and wait for the import to complete
     Write-Host "Waiting for import to complete"
-    $importStatus = Get-AzureRmSqlDatabaseImportExportStatus -OperationStatusLink $importRequest.OperationStatusLink
+    $importStatus = Get-AzSqlDatabaseImportExportStatus -OperationStatusLink $importRequest.OperationStatusLink
     [Console]::Write("Importing")
     while ($importStatus.Status -eq "InProgress")
     {
-        $importStatus = Get-AzureRmSqlDatabaseImportExportStatus -OperationStatusLink $importRequest.OperationStatusLink
+        $importStatus = Get-AzSqlDatabaseImportExportStatus -OperationStatusLink $importRequest.OperationStatusLink
         [Console]::Write(".")
         Start-Sleep -s 10
     }
